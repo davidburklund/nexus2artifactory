@@ -83,6 +83,7 @@ class Upload:
                 if f.endswith('.md5') or f.endswith('.sha1'): continue
                 ap = os.path.join(path, f)
                 mp = os.path.join(metapath, f)
+                self.log.info("file ap: %s; mp: %s", ap, mp)
                 if os.path.isdir(ap) and os.path.isdir(mp):
                     def joinall(x): return os.path.join(f, x)
                     files.extend(map(joinall, os.listdir(ap)))
