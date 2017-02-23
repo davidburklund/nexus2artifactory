@@ -79,6 +79,7 @@ class Upload:
             except ValueError: pass
             while len(files) > 0:
                 f = files.pop()
+                self.log.info("Found file: %s", f)
                 if f.endswith('.md5') or f.endswith('.sha1'): continue
                 ap = os.path.join(path, f)
                 mp = os.path.join(metapath, f)
