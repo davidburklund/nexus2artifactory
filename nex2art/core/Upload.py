@@ -54,6 +54,7 @@ class Upload:
     def filelistgenerator(self, conf):
         repomap = self.scr.nexus.repomap
         storage = os.path.join(self.scr.nexus.path, 'storage')
+        self.log.info("Storage path = %s", storage)
         for name, src in conf["Repository Migration Setup"].items():
             if src['available'] != True: continue
             if src["Migrate This Repo"] != True: continue
@@ -66,6 +67,7 @@ class Upload:
                 path = re.sub('^file:/', '/', path)
                 path = os.path.abspath(path)
             else: path = os.path.join(storage, name)
+            self.log.info("Final path = %s", path)
             if not os.path.isdir(path): continue
             metapath = os.path.join(path, '.nexus', 'attributes')
             files = os.listdir(path)
