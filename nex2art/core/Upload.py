@@ -7,6 +7,7 @@ import base64
 import logging
 import urllib2
 import threading
+import xml
 
 class PutRequest(urllib2.Request):
     def __init__(self, *args, **kwargs):
@@ -54,6 +55,7 @@ class Upload:
     def filelistgenerator(self, conf):
         repomap = self.scr.nexus.repomap
         storage = os.path.join(self.scr.nexus.path, 'storage')
+        proxy = os.path.join(self.scr.nexus.path, 'proxy')
         self.log.info("Storage path = %s", storage)
         for name, src in conf["Repository Migration Setup"].items():
             if src['available'] != True: continue
@@ -67,23 +69,27 @@ class Upload:
                 path = re.sub('^file:/', '/', path)
                 path = os.path.abspath(path)
             else: path = os.path.join(storage, name)
-            self.log.info("Final path = %s", path)
+            #self.log.info("Final path = %s", path)
             if not os.path.isdir(path): continue
-            metapath = os.path.join(path, '.nexus', 'attributes')
+            metapath = os.path.join(proxy, 'attributes', name)
             files = os.listdir(path)
+            try: files.remove('.index')
+            except ValueError: pass
             try: files.remove('.nexus')
             except ValueError: pass
             try: files.remove('.meta')
+            except ValueError: pass
+            try: files.remove('.p2')
             except ValueError: pass
             try: files.remove('archetype-catalog.xml')
             except ValueError: pass
             while len(files) > 0:
                 f = files.pop()
-                self.log.info("Found file: %s", f)
+                #self.log.info("Found file: %s", f)
                 if f.endswith('.md5') or f.endswith('.sha1'): continue
                 ap = os.path.join(path, f)
                 mp = os.path.join(metapath, f)
-                self.log.info("file ap: %s; mp: %s", ap, mp)
+                #self.log.info("file ap: %s; mp: %s", ap, mp)
                 if os.path.isdir(ap) and os.path.isdir(mp):
                     def joinall(x): return os.path.join(f, x)
                     files.extend(map(joinall, os.listdir(ap)))
@@ -95,18 +101,21 @@ class Upload:
             item = queue.get()
             if item == None: break
             path, metapath, repo = item
-            js, stat = None, None
-            with open(metapath, 'r') as meta: js = json.load(meta)
-            if int(js['storageItem-modified']) < self.ts:
-                self.incFileCount(repo + ':' + js['storageItem-path'])
-                continue
-            puturl = url + repo + js['storageItem-path']
+            et, js, stat = None, None, None
+            with open(metapath, 'r') as meta: et = xml.etree.ElementTree.parse(metapath)
+            root = et.getroot()
+            storagepath = root.find("path").text
+            digestsha1 = root.find (".//*[string='digest.sha1']")[1].text
+            digestmd5 = root.find( ".//*[string='digest.md5']")[1].text
+            # if int(js['storageItem-modified']) < self.ts:
+            #     self.incFileCount(repo + ':' + storagepath)
+            #     continue
+            puturl = url + repo + storagepath
             chksumheaders = {'X-Checksum-Deploy': 'true'}
-            chksumheaders['X-Checksum-Sha1'] = js['digest.sha1']
-            chksumheaders['X-Checksum-Md5'] = js['digest.md5']
+            chksumheaders['X-Checksum-Sha1'] = digestsha1
+            chksumheaders['X-Checksum-Md5'] = digestmd5
             chksumheaders.update(headers)
-            self.log.info("Deploying artifact checksum %s (%s) to %s.",
-                          js['digest.sha1'], js['digest.md5'], puturl)
+            self.log.info("Deploying artifact checksum %s (%s) to %s.", digestsha1, digestmd5, puturl)
             req = PutRequest(puturl, headers=chksumheaders)
             try: stat = urllib2.urlopen(req).getcode()
             except urllib2.HTTPError as ex:
@@ -122,14 +131,14 @@ class Upload:
             if stat == 404: stat = self.deployArtifact(puturl, path, headers)
             if not isinstance(stat, (int, long)) or stat < 200 or stat >= 300:
                 self.log.error("Unable to deploy artifact to %s.", puturl)
-                self.incFileCount(repo + ':' + js['storageItem-path'], True)
+                self.incFileCount(repo + ':' + storagepath, True)
             else:
                 for ext in '.sha1', '.md5':
                     hpath = path + ext
                     if not os.path.isfile(hpath): continue
                     self.deployArtifact(puturl + ext, hpath, headers)
                 self.log.info("Successfully deployed artifact to %s.", puturl)
-                self.incFileCount(repo + ':' + js['storageItem-path'])
+                self.incFileCount(repo + ':' + storagepath)
 
     def deployArtifact(self, url, path, headers):
         stat = None
