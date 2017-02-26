@@ -106,7 +106,7 @@ class Upload:
             root = et.getroot()
             storagepath = root.find("path").text
             modified = root.find("modified").text
-            digestsha1 = root.find (".//*[string='digest.sha1']")[1].text
+            digestsha1 = root.find(".//*[string='digest.sha1']")[1].text
             digestmd5 = root.find( ".//*[string='digest.md5']")[1].text
             if int(modified) < self.ts:
                 self.incFileCount(repo + ':' + storagepath)
