@@ -105,11 +105,12 @@ class Upload:
             with open(metapath, 'r') as meta: et = xml.etree.ElementTree.parse(metapath)
             root = et.getroot()
             storagepath = root.find("path").text
+            modified = root.find("modified").text
             digestsha1 = root.find (".//*[string='digest.sha1']")[1].text
             digestmd5 = root.find( ".//*[string='digest.md5']")[1].text
-            # if int(js['storageItem-modified']) < self.ts:
-            #     self.incFileCount(repo + ':' + storagepath)
-            #     continue
+            if int(modified) < self.ts:
+                self.incFileCount(repo + ':' + storagepath)
+                continue
             puturl = url + repo + storagepath
             chksumheaders = {'X-Checksum-Deploy': 'true'}
             chksumheaders['X-Checksum-Sha1'] = digestsha1
